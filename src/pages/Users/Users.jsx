@@ -1,23 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Table from "../../components/table/Table";
 import TableHeader from "../../components/table/TableHeader";
 import TableRow from "../../components/table/TableRow";
 import Pagination from "../../components/common/Pagination";
 import useDebounce from "../../hooks/useDebounce";
-
-const mockUsers = [
-  { id: 1, name: "John Doe", email: "john@example.com", role: "admin", status: "active" },
-  { id: 2, name: "Jane Smith", email: "jane@example.com", role: "user", status: "blocked" },
-  { id: 3, name: "Alex Brown", email: "alex@example.com", role: "user", status: "active" },
-  { id: 4, name: "Emma Wilson", email: "emma@example.com", role: "user", status: "active" },
-  { id: 5, name: "Chris Lee", email: "chris@example.com", role: "admin", status: "blocked" },
-  { id: 6, name: "Sarah Kim", email: "sarah@example.com", role: "user", status: "active" },
-  { id: 7, name: "David Miller", email: "david@example.com", role: "user", status: "active" },
-];
+import { fetchUsers } from "../../services/userService";
 
 function Users() {
-  // base data
-  const [users] = useState(mockUsers);
+  // data state
+  const [users, setUsers] = useState([]);
+  const [meta, setMeta] = useState({});
+
+  // UI states
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   // pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -32,54 +28,61 @@ function Users() {
   const [statusFilter, setStatusFilter] = useState("all");
 
   // sorting
-  const [sortBy, setSortBy] = useState("name"); // "name" | "email"
-  const [sortOrder, setSortOrder] = useState("asc"); // "asc" | "desc"
+  const [sortBy, setSortBy] = useState("name");
+  const [sortOrder, setSortOrder] = useState("asc");
 
   // ---------------------------
-  // SEARCH + FILTER
+  // FETCH USERS FROM BACKEND
   // ---------------------------
-  const filteredUsers = users.filter((user) => {
-    const matchesSearch =
-      user.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
+  useEffect(() => {
+    async function loadUsers() {
+      setLoading(true);
+      setError(null);
 
-    const matchesRole = roleFilter === "all" || user.role === roleFilter;
-    const matchesStatus = statusFilter === "all" || user.status === statusFilter;
+      try {
+        const response = await fetchUsers({
+          page: currentPage,
+          limit: USERS_PER_PAGE,
+          search: debouncedSearchQuery,
+          role: roleFilter,
+          status: statusFilter,
+          sortBy,
+          sortOrder,
+        });
 
-    return matchesSearch && matchesRole && matchesStatus;
-  });
+        setUsers(response.data);
+        setMeta(response.meta);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
 
-  // ---------------------------
-  // SORTING (NEW)
-  // ---------------------------
-  const sortedUsers = [...filteredUsers].sort((a, b) => {
-    const valueA = a[sortBy].toLowerCase();
-    const valueB = b[sortBy].toLowerCase();
-
-    if (valueA < valueB) return sortOrder === "asc" ? -1 : 1;
-    if (valueA > valueB) return sortOrder === "asc" ? 1 : -1;
-    return 0;
-  });
-
-  // ---------------------------
-  // PAGINATION
-  // ---------------------------
-  const totalPages = Math.ceil(sortedUsers.length / USERS_PER_PAGE) || 1;
-  const startIndex = (currentPage - 1) * USERS_PER_PAGE;
-  const currentUsers = sortedUsers.slice(
-    startIndex,
-    startIndex + USERS_PER_PAGE
-  );
+    loadUsers();
+  }, [
+    currentPage,
+    USERS_PER_PAGE,
+    debouncedSearchQuery,
+    roleFilter,
+    statusFilter,
+    sortBy,
+    sortOrder,
+  ]);
 
   // ---------------------------
   // HANDLERS
   // ---------------------------
   function goToNextPage() {
-    if (currentPage < totalPages) setCurrentPage((p) => p + 1);
+    if (currentPage < meta.totalPages) {
+      setCurrentPage((p) => p + 1);
+    }
   }
 
   function goToPreviousPage() {
-    if (currentPage > 1) setCurrentPage((p) => p - 1);
+    if (currentPage > 1) {
+      setCurrentPage((p) => p - 1);
+    }
   }
 
   function handleSearchChange(e) {
@@ -99,7 +102,6 @@ function Users() {
 
   function handleSort(column) {
     if (sortBy === column) {
-      // toggle order
       setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
     } else {
       setSortBy(column);
@@ -107,6 +109,12 @@ function Users() {
     }
     setCurrentPage(1);
   }
+
+  // ---------------------------
+  // UI STATES
+  // ---------------------------
+  if (loading) return <div>Loading users...</div>;
+  if (error) return <div>Error: {error}</div>;
 
   // ---------------------------
   // RENDER
@@ -139,7 +147,7 @@ function Users() {
         </select>
       </div>
 
-      {/* Sort Controls */}
+      {/* Sort */}
       <div style={{ marginBottom: "12px", display: "flex", gap: "12px" }}>
         <button onClick={() => handleSort("name")}>
           Sort by Name ({sortBy === "name" ? sortOrder : "asc"})
@@ -154,18 +162,18 @@ function Users() {
       <Table>
         <TableHeader />
         <tbody>
-          {currentUsers.map((user) => (
+          {users.map((user) => (
             <TableRow key={user.id} user={user} />
           ))}
         </tbody>
       </Table>
 
-      {sortedUsers.length === 0 && <div>No users found</div>}
+      {users.length === 0 && <div>No users found</div>}
 
       {/* Pagination */}
       <Pagination
         currentPage={currentPage}
-        totalPages={totalPages}
+        totalPages={meta.totalPages || 1}
         onNext={goToNextPage}
         onPrevious={goToPreviousPage}
       />
