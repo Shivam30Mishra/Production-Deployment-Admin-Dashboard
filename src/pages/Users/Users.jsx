@@ -31,31 +31,42 @@ function Users() {
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
 
+  // sorting
+  const [sortBy, setSortBy] = useState("name"); // "name" | "email"
+  const [sortOrder, setSortOrder] = useState("asc"); // "asc" | "desc"
+
   // ---------------------------
-  // SEARCH + FILTER LOGIC
+  // SEARCH + FILTER
   // ---------------------------
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
       user.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
 
-    const matchesRole =
-      roleFilter === "all" || user.role === roleFilter;
-
-    const matchesStatus =
-      statusFilter === "all" || user.status === statusFilter;
+    const matchesRole = roleFilter === "all" || user.role === roleFilter;
+    const matchesStatus = statusFilter === "all" || user.status === statusFilter;
 
     return matchesSearch && matchesRole && matchesStatus;
   });
 
   // ---------------------------
-  // PAGINATION LOGIC
+  // SORTING (NEW)
   // ---------------------------
-  const totalPages =
-    Math.ceil(filteredUsers.length / USERS_PER_PAGE) || 1;
+  const sortedUsers = [...filteredUsers].sort((a, b) => {
+    const valueA = a[sortBy].toLowerCase();
+    const valueB = b[sortBy].toLowerCase();
 
+    if (valueA < valueB) return sortOrder === "asc" ? -1 : 1;
+    if (valueA > valueB) return sortOrder === "asc" ? 1 : -1;
+    return 0;
+  });
+
+  // ---------------------------
+  // PAGINATION
+  // ---------------------------
+  const totalPages = Math.ceil(sortedUsers.length / USERS_PER_PAGE) || 1;
   const startIndex = (currentPage - 1) * USERS_PER_PAGE;
-  const currentUsers = filteredUsers.slice(
+  const currentUsers = sortedUsers.slice(
     startIndex,
     startIndex + USERS_PER_PAGE
   );
@@ -64,15 +75,11 @@ function Users() {
   // HANDLERS
   // ---------------------------
   function goToNextPage() {
-    if (currentPage < totalPages) {
-      setCurrentPage((prev) => prev + 1);
-    }
+    if (currentPage < totalPages) setCurrentPage((p) => p + 1);
   }
 
   function goToPreviousPage() {
-    if (currentPage > 1) {
-      setCurrentPage((prev) => prev - 1);
-    }
+    if (currentPage > 1) setCurrentPage((p) => p - 1);
   }
 
   function handleSearchChange(e) {
@@ -87,6 +94,17 @@ function Users() {
 
   function handleStatusChange(e) {
     setStatusFilter(e.target.value);
+    setCurrentPage(1);
+  }
+
+  function handleSort(column) {
+    if (sortBy === column) {
+      // toggle order
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(column);
+      setSortOrder("asc");
+    }
     setCurrentPage(1);
   }
 
@@ -121,6 +139,17 @@ function Users() {
         </select>
       </div>
 
+      {/* Sort Controls */}
+      <div style={{ marginBottom: "12px", display: "flex", gap: "12px" }}>
+        <button onClick={() => handleSort("name")}>
+          Sort by Name ({sortBy === "name" ? sortOrder : "asc"})
+        </button>
+
+        <button onClick={() => handleSort("email")}>
+          Sort by Email ({sortBy === "email" ? sortOrder : "asc"})
+        </button>
+      </div>
+
       {/* Table */}
       <Table>
         <TableHeader />
@@ -131,8 +160,7 @@ function Users() {
         </tbody>
       </Table>
 
-      {/* Empty State */}
-      {filteredUsers.length === 0 && <div>No users found</div>}
+      {sortedUsers.length === 0 && <div>No users found</div>}
 
       {/* Pagination */}
       <Pagination
