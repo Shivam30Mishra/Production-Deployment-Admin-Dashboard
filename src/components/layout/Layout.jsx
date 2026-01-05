@@ -1,3 +1,7 @@
+import Sidebar from "./Sidebar";
+import Header from "./Header";
+
+
 function Layout({ children }) {
   return (
     <div className="app">
@@ -9,3 +13,4 @@ function Layout({ children }) {
     </div>
   )
 }
+export default Layout;
